@@ -1,3 +1,4 @@
+
 #include "BAMoutput.h"
 #include <sys/stat.h>
 #include "GlobalVariables.h"
@@ -5,6 +6,22 @@
 #include "serviceFuns.cpp"
 #include "ThreadControl.h"
 #include "streamFuns.h"
+
+BAMoutput::BAMoutput(htsFile *htsOutIn, Parameters &Pin) : P(Pin) {
+    // allocate BAM array with one bin, streamed directly into htsFile (SAM/BAM/CRAM)
+    bamArraySize = P.chunkOutBAMsizeBytes;
+    bamArray = new char[bamArraySize];
+    binBytes1 = 0;
+    htsOut = htsOutIn;
+    bgzfBAM = nullptr;
+    binSize = 0;
+    binStream = nullptr;
+    binStart = nullptr;
+    binBytes = nullptr;
+    binTotalBytes = nullptr;
+    binTotalN = nullptr;
+    nBins = 0;
+}
 
 BAMoutput::BAMoutput (int iChunk, string tmpDir, Parameters &Pin) : P(Pin){//allocate bam array
 
