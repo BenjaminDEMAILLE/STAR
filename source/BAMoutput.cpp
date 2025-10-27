@@ -66,30 +66,41 @@ BAMoutput::BAMoutput (BGZF *bgzfBAMin, Parameters &Pin) : P(Pin){//allocate BAM 
     nBins=0;
 };
 
-void BAMoutput::unsortedOneAlign (char *bamIn, uint bamSize, uint bamSize2) {//record one alignment to the buffer, write buffer if needed
 
-    if (bamSize==0) return; //no output, could happen if one of the mates is not mapped
-
-    if (binBytes1+bamSize2 > bamArraySize) {//write out this buffer
-
+void BAMoutput::unsortedOneAlign (char *bamIn, uint bamSize, uint bamSize2) {
+    if (bamSize==0) return;
+    if (htsOut) {
+        // Write directly using sam_write1 for each record
+        bam1_t b;
+        memset(&b, 0, sizeof(bam1_t));
+        bam_read1_fromArray(bamIn, &b);
+        sam_write1(htsOut, NULL, &b); // TODO: pass correct header if available
+        if (b.data) b.data = NULL; // avoid double free
+        return;
+    }
+    // Legacy BGZF mode
+    if (binBytes1+bamSize2 > bamArraySize) {
         if (g_threadChunks.threadBool) pthread_mutex_lock(&g_threadChunks.mutexOutSAM);
         bgzf_write(bgzfBAM,bamArray,binBytes1);
         if (g_threadChunks.threadBool) pthread_mutex_unlock(&g_threadChunks.mutexOutSAM);
-
-        binBytes1=0;//rewind the buffer
-    };
-
+        binBytes1=0;
+    }
     memcpy(bamArray+binBytes1, bamIn, bamSize);
     binBytes1 += bamSize;
+}
 
-};
 
-void BAMoutput::unsortedFlush () {//flush all alignments
+void BAMoutput::unsortedFlush () {
+    if (htsOut) {
+        // nothing to flush for htsFile, records are written immediately
+        binBytes1=0;
+        return;
+    }
     if (g_threadChunks.threadBool) pthread_mutex_lock(&g_threadChunks.mutexOutSAM);
     bgzf_write(bgzfBAM,bamArray,binBytes1);
     if (g_threadChunks.threadBool) pthread_mutex_unlock(&g_threadChunks.mutexOutSAM);
-    binBytes1=0;//rewind the buffer
-};
+    binBytes1=0;
+}
 
 void BAMoutput::coordOneAlign (char *bamIn, uint bamSize, uint iRead) {
 
